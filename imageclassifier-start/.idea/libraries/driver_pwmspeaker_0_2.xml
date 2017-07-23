@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="driver-pwmspeaker-0.2">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.android/build-cache/9ea56a4dece8352ee2847a5021ea7594881b8f97/output/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.android/build-cache/9ea56a4dece8352ee2847a5021ea7594881b8f97/output/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

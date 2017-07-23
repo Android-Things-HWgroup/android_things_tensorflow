@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="driver-pwmservo-0.2">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.android/build-cache/43f76c95ee880402f588e168b0249e179691a9ed/output/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.android/build-cache/43f76c95ee880402f588e168b0249e179691a9ed/output/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

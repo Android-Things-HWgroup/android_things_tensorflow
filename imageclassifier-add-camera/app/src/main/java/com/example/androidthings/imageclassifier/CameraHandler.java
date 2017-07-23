@@ -17,12 +17,14 @@ package com.example.androidthings.imageclassifier;
 
 import android.content.Context;
 import android.graphics.ImageFormat;
+import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureRequest.Builder;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -32,6 +34,7 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 import android.util.Size;
 
+import android.view.Surface;
 import java.util.Collections;
 
 import static android.content.Context.CAMERA_SERVICE;
@@ -127,13 +130,15 @@ public class CameraHandler {
         }
         // Here, we create a CameraCaptureSession for capturing still images.
         try {
-            mCameraDevice.createCaptureSession(
-                    Collections.singletonList(mImageReader.getSurface()),
-                    mSessionCallback,
-                    null);
+            mCameraDevice.createCaptureSession( Collections.singletonList(mImageReader.getSurface()), mSessionCallback, null);
         } catch (CameraAccessException cae) {
             Log.d(TAG, "access exception while preparing pic", cae);
         }
+    }
+
+    public void setSurface(Surface su) throws CameraAccessException {
+        Builder mPreViewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+        mPreViewBuilder.addTarget(su);
     }
     /**
      * Callback handling session state changes

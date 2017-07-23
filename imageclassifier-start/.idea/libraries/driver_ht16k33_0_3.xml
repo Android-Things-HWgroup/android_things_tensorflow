@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="driver-ht16k33-0.3">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.android/build-cache/5e962d3b564356e1e1f602f8b863470628b217ec/output/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.android/build-cache/5e962d3b564356e1e1f602f8b863470628b217ec/output/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

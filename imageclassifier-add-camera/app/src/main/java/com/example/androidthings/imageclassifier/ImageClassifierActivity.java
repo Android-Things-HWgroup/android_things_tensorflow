@@ -18,6 +18,7 @@ package com.example.androidthings.imageclassifier;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.hardware.camera2.CameraAccessException;
 import android.media.ImageReader;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,9 +26,17 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.KeyEvent;
 
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.TextureView;
+import android.widget.ImageView;
 import com.google.android.things.contrib.driver.button.ButtonInputDriver;
 import com.google.android.things.contrib.driver.rainbowhat.RainbowHat;
 
+import com.google.android.things.pio.Gpio;
+import com.google.android.things.pio.GpioCallback;
+import com.google.android.things.pio.PeripheralManagerService;
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
 import java.io.IOException;
@@ -42,32 +51,21 @@ public class ImageClassifierActivity extends Activity {
     private CameraHandler mCameraHandler;
     private ImagePreprocessor mImagePreprocessor;
 
-    /**
-     * Initialize the classifier that will be used to process images.
-     */
+    private PeripheralManagerService service = new PeripheralManagerService();
+    private Gpio mButtonGpio;
+
+    private TextureView mSurfaceView;
+
     private void initClassifier() {
         this.inferenceInterface = new TensorFlowInferenceInterface(
                 getAssets(), Helper.MODEL_FILE);
         this.labels = Helper.readLabels(this);
     }
 
-    /**
-     * Clean up the resources used by the classifier.
-     */
     private void destroyClassifier() {
         inferenceInterface.close();
     }
 
-    /**
-     * Process an image and identify what is in it. When done, the method
-     * {@link #onPhotoRecognitionReady(String[])} must be called with the results of
-     * the image recognition process.
-     *
-     * @param image Bitmap containing the image to be classified. The image can be
-     *              of any size, but preprocessing might occur to resize it to the
-     *              format expected by the classification process, which can be time
-     *              and power consuming.
-     */
     private void doRecognize(Bitmap image) {
         float[] pixels = Helper.getPixels(image);
 
@@ -86,11 +84,9 @@ public class ImageClassifierActivity extends Activity {
         onPhotoRecognitionReady(Helper.getBestResults(outputs, labels));
     }
 
-    /**
-     * Initialize the camera that will be used to capture images.
-     */
-    private void initCamera() {
+    private void initCamera(Surface su) throws CameraAccessException {
         mImagePreprocessor = new ImagePreprocessor();
+
         mCameraHandler = CameraHandler.getInstance();
         Handler threadLooper = new Handler(getMainLooper());
         mCameraHandler.initializeCamera(this, threadLooper,
@@ -101,51 +97,67 @@ public class ImageClassifierActivity extends Activity {
                 onPhotoReady(bitmap);
             }
         });
+        mCameraHandler.setSurface(su);
     }
 
-    /**
-     * Clean up resources used by the camera.
-     */
     private void closeCamera() {
         mCameraHandler.shutDown();
     }
 
-    /**
-     * Load the image that will be used in the classification process.
-     * When done, the method {@link #onPhotoReady(Bitmap)} must be called with the image.
-     */
     private void loadPhoto() {
         mCameraHandler.takePicture();
     }
 
-
-
-    // --------------------------------------------------------------------------------------
-    // NOTE: The normal codelab flow won't require you to change anything below this line,
-    // although you are encouraged to read and understand it.
-
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        initCamera();
+        setContentView(R.layout.actvity_main);
+
+        mSurfaceView = (TextureView) findViewById(R.id.camera);
+        Surface surfaceView = new Surface(mSurfaceView.getSurfaceTexture());
+
+        try {
+            initCamera(surfaceView);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
         initClassifier();
         initButton();
+
         Log.d(TAG, "READY");
     }
 
-    /**
-     * Register a GPIO button that, when clicked, will generate the {@link KeyEvent#KEYCODE_ENTER}
-     * key, to be handled by {@link #onKeyUp(int, KeyEvent)} just like any regular keyboard
-     * event.
-     *
-     * If there's no button connected to the board, the doRecognize can still be triggered by
-     * sending key events using a USB keyboard or `adb shell input keyevent 66`.
-     */
     private void initButton() {
         try {
-            String pin = Build.DEVICE.equals("rpi3") ? RainbowHat.BUTTON_C : "GPIO_39";
-            mButtonDriver = RainbowHat.createButtonInputDriver(pin, KeyEvent.KEYCODE_ENTER);
-            mButtonDriver.register();
+            String pin = Build.DEVICE.equals("rpi3") ? "BCM26" : "GPIO_37";
+
+            mButtonGpio = service.openGpio(pin);
+            mButtonGpio.setDirection(Gpio.DIRECTION_IN);
+            mButtonGpio.setEdgeTriggerType(Gpio.EDGE_BOTH);
+            // Value is true when the pin is LOW
+            mButtonGpio.setActiveType(Gpio.ACTIVE_LOW);
+            // Register the event callback.
+            mButtonGpio.registerGpioCallback(new GpioCallback() {
+                private long t;
+                @Override
+                public boolean onGpioEdge(Gpio gpio) {
+                    try {
+                        if(gpio.getValue()){
+                            t = System.currentTimeMillis();
+                        }else{
+                            long a = System.currentTimeMillis() - t;
+                            if(a < 1500){
+                                Log.d(TAG, "Running photo recognition");
+                                mProcessing = true;
+                                loadPhoto();
+                            }
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    return true;
+                }
+            });
         } catch (IOException e) {
             Log.w(TAG, "Cannot find button. Ignoring push button. Use a keyboard instead.", e);
         }
@@ -156,22 +168,8 @@ public class ImageClassifierActivity extends Activity {
         return BitmapFactory.decodeResource(this.getResources(), R.drawable.sampledog_224x224);
     }
 
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (mProcessing) {
-                Log.e(TAG, "Still processing, please wait");
-                return true;
-            }
-            Log.d(TAG, "Running photo recognition");
-            mProcessing = true;
-            loadPhoto();
-            return true;
-        }
-        return super.onKeyUp(keyCode, event);
-    }
-
     private void onPhotoReady(Bitmap bitmap) {
+//        mImageViwe.setImageBitmap(bitmap);
         doRecognize(bitmap);
     }
 
@@ -194,7 +192,14 @@ public class ImageClassifierActivity extends Activity {
             // close quietly
         }
         try {
-            if (mButtonDriver != null) mButtonDriver.close();
+            if (mButtonGpio != null) {
+                mButtonGpio.unregisterGpioCallback(new GpioCallback() {});
+                try {
+                    mButtonGpio.close();
+                } catch (IOException e) {
+                    Log.w(TAG, "Error closing GPIO", e);
+                }
+            }
         } catch (Throwable t) {
             // close quietly
         }
